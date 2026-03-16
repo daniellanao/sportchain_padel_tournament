@@ -1,7 +1,8 @@
 import { createClient } from "@/app/lib/supabase/server";
-import { RoundResultIcon } from "./components/RoundResultIcon";
+import { RoundResultIcon } from "@/app/components/RoundResultIcon";
+import Link from "next/link";
+import { notFound } from "next/navigation";
 
-// Datos de ejemplo para la clasificación (luego se pueden cargar por tournament_id)
 const STANDINGS_COLUMNS = [
   "#",
   "Team Name",
@@ -37,126 +38,49 @@ type StandingRow = {
 };
 
 const MOCK_STANDINGS: StandingRow[] = [
-  {
-    position: 1,
-    teamName: "Smash Brothers",
-    players: "López / García",
-    r1: "W",
-    r2: "W",
-    r3: "W",
-    r4: "W",
-    mp: 4,
-    w: 4,
-    l: 0,
-    gw: 32,
-    gl: 18,
-    diff: 14,
-    wins: 4,
-  },
-  {
-    position: 2,
-    teamName: "Padel Masters",
-    players: "Martínez / Sánchez",
-    r1: "W",
-    r2: "W",
-    r3: "W",
-    r4: "L",
-    mp: 4,
-    w: 3,
-    l: 1,
-    gw: 28,
-    gl: 22,
-    diff: 6,
-    wins: 3,
-  },
-  {
-    position: 3,
-    teamName: "Net Rulers",
-    players: "Fernández / Ruiz",
-    r1: "W",
-    r2: "L",
-    r3: "W",
-    r4: "W",
-    mp: 4,
-    w: 3,
-    l: 1,
-    gw: 26,
-    gl: 24,
-    diff: 2,
-    wins: 3,
-  },
-  {
-    position: 4,
-    teamName: "Court Kings",
-    players: "Díaz / Álvarez",
-    r1: "L",
-    r2: "W",
-    r3: "L",
-    r4: "W",
-    mp: 4,
-    w: 2,
-    l: 2,
-    gw: 22,
-    gl: 26,
-    diff: -4,
-    wins: 2,
-  },
-  {
-    position: 5,
-    teamName: "Lob & Drop",
-    players: "Romero / Torres",
-    r1: "L",
-    r2: "L",
-    r3: "W",
-    r4: "L",
-    mp: 4,
-    w: 1,
-    l: 3,
-    gw: 18,
-    gl: 28,
-    diff: -10,
-    wins: 1,
-  },
+  { position: 1, teamName: "Smash Brothers", players: "López / García", r1: "W", r2: "W", r3: "W", r4: "W", mp: 4, w: 4, l: 0, gw: 32, gl: 18, diff: 14, wins: 4 },
+  { position: 2, teamName: "Padel Masters", players: "Martínez / Sánchez", r1: "W", r2: "W", r3: "W", r4: "L", mp: 4, w: 3, l: 1, gw: 28, gl: 22, diff: 6, wins: 3 },
+  { position: 3, teamName: "Net Rulers", players: "Fernández / Ruiz", r1: "W", r2: "L", r3: "W", r4: "W", mp: 4, w: 3, l: 1, gw: 26, gl: 24, diff: 2, wins: 3 },
+  { position: 4, teamName: "Court Kings", players: "Díaz / Álvarez", r1: "L", r2: "W", r3: "L", r4: "W", mp: 4, w: 2, l: 2, gw: 22, gl: 26, diff: -4, wins: 2 },
+  { position: 5, teamName: "Lob & Drop", players: "Romero / Torres", r1: "L", r2: "L", r3: "W", r4: "L", mp: 4, w: 1, l: 3, gw: 18, gl: 28, diff: -10, wins: 1 },
 ];
 
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
-  const d = new Date(iso);
-  return d.toLocaleDateString("es-ES", {
+  return new Date(iso).toLocaleDateString("es-ES", {
     day: "numeric",
     month: "long",
     year: "numeric",
   });
 }
 
-export default async function Home() {
-  const slug = process.env.NEXT_PUBLIC_TOURNAMENT_SLUG;
+type TournamentRow = {
+  name: string;
+  slug: string | null;
+  format: string | null;
+  status: string | null;
+  location: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  max_teams: number | null;
+  total_rounds: number | null;
+  description: string | null;
+};
 
-  if (!slug) {
-    return (
-      <main className="min-h-screen bg-background">
-        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-          <div className="rounded-xl border border-foreground/10 bg-surface p-8 text-center">
-            <h1 className="text-xl font-bold text-foreground">
-              No hay torneo seleccionado
-            </h1>
-            <p className="mt-2 text-sm text-foreground/70">
-              Configura <code className="rounded bg-muted px-1.5 py-0.5 text-xs">NEXT_PUBLIC_TOURNAMENT_SLUG</code> en tu <code className="rounded bg-muted px-1.5 py-0.5 text-xs">.env.local</code> con el slug del torneo (el mismo que en la base de datos).
-            </p>
-            <p className="mt-4">
-              <a
-                href="/torneos"
-                className="text-primary underline hover:no-underline"
-              >
-                Ver todos los torneos →
-              </a>
-            </p>
-          </div>
-        </div>
-      </main>
-    );
-  }
+type Props = {
+  params: Promise<{ slug: string }>;
+};
 
+export async function generateMetadata({ params }: Props) {
+  const { slug } = await params;
+  const supabase = await createClient();
+  const { data } = await supabase.from("tournaments").select("name").eq("slug", slug).single();
+  const title = data?.name ? `${data.name} | Torneos` : "Torneo | Sportchain";
+  return { title };
+}
+
+export default async function TorneoSlugPage({ params }: Props) {
+  const { slug } = await params;
   const supabase = await createClient();
   const { data: tournament, error } = await supabase
     .from("tournaments")
@@ -165,44 +89,20 @@ export default async function Home() {
     .single();
 
   if (error || !tournament) {
-    return (
-      <main className="min-h-screen bg-background">
-        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-          <div className="rounded-xl border border-foreground/10 bg-surface p-8 text-center">
-            <h1 className="text-xl font-bold text-foreground">
-              Torneo no encontrado
-            </h1>
-            <p className="mt-2 text-sm text-foreground/70">
-              No existe un torneo con el slug <strong>{slug}</strong> en la base de datos.
-            </p>
-            <p className="mt-4">
-              <a
-                href="/torneos"
-                className="text-primary underline hover:no-underline"
-              >
-                Ver todos los torneos →
-              </a>
-            </p>
-          </div>
-        </div>
-      </main>
-    );
+    notFound();
   }
 
-  const t = tournament as {
-    name: string;
-    location: string | null;
-    start_date: string | null;
-    end_date: string | null;
-    description: string | null;
-    format: string | null;
-    status: string | null;
-  };
+  const t = tournament as TournamentRow;
 
   return (
     <main className="min-h-screen bg-background">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Cabecera del torneo */}
+        <p className="mb-4 text-sm text-foreground/70">
+          <Link href="/torneos" className="text-primary hover:underline">
+            ← Torneos
+          </Link>
+        </p>
+
         <header className="mb-8">
           <h1 className="text-2xl font-bold text-foreground sm:text-3xl">
             {t.name}
@@ -217,13 +117,18 @@ export default async function Home() {
             {t.status && (
               <span className="capitalize text-foreground/60">{t.status}</span>
             )}
+            {t.max_teams != null && (
+              <span>Máx. {t.max_teams} equipos</span>
+            )}
+            {t.total_rounds != null && (
+              <span>{t.total_rounds} rondas</span>
+            )}
           </div>
           {t.description && (
             <p className="mt-3 max-w-2xl text-foreground/80">{t.description}</p>
           )}
         </header>
 
-        {/* Clasificación */}
         <section>
           <h2 className="mb-4 text-lg font-semibold text-foreground">
             Clasificación
